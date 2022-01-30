@@ -1,14 +1,13 @@
 # training settings
 import logging
-
 from mpi4py import MPI
 import numpy as np
 import os
 import subprocess
 import sys
 from es import OpenES
+from simulation import battle_simulation
 import time
-from main import battle_simulation
 
 
 def sprint(*args):
@@ -55,6 +54,7 @@ class ParallelExecutor(object):
         self.num_episode = num_episode
         self.num_worker = num_worker
         self.num_worker_trial = num_worker_trial
+        self.population = num_worker * num_worker_trial
         self.es = OpenES(num_params,
                          sigma_init=sigma_init,
                          sigma_decay=sigma_decay,
@@ -68,7 +68,6 @@ class ParallelExecutor(object):
         self.RESULT_PACKET_SIZE = 4 * num_worker_trial
         self.SOLUTION_PACKET_SIZE = (5 + num_params) * num_worker_trial
         self.PRECISION = 10000
-        self.population = num_worker * num_worker_trial
         self.seed = seed
         self.antithetic = antithetic
         self.retrain = retrain
@@ -286,7 +285,7 @@ def mpi_fork(n):
             IN_MPI="1"
         )
         logging.info(["mpirun", "-np", str(n), sys.executable] + sys.argv)
-        subprocess.check_call(["mpirun", "-np", str(n), sys.executable] + ['-u'] + sys.argv, env=env)
+        subprocess.check_call(["mpiexec", "-n", str(n), sys.executable] + ['-u'] + sys.argv, env=env)
         return "parent"
     else:
         nworkers = MPI.COMM_WORLD.Get_size()
