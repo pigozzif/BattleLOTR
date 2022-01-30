@@ -13,7 +13,7 @@ def euclidean(a, b):
 
 class Environment(object):
 
-    def __init__(self, args, solution=None):
+    def __init__(self, args, solution):
         self.width = args["width"]
         self.height = args["height"]
         self.n_agents = 0
@@ -23,7 +23,7 @@ class Environment(object):
             if lineage.is_evil:
                 self.evil_agents.extend([RandomAgent(i, random.random() * self.width, random.random() * self.height, lineage) for i in range(args[lineage.name.lower()])])
             else:
-                self.good_agents.extend([RandomAgent(i, random.random() * self.width, random.random() * self.height, lineage) for i in range(args[lineage.name.lower()])])
+                self.good_agents.extend([MLPAgent(i, random.random() * self.width, random.random() * self.height, lineage, solution) for i in range(args[lineage.name.lower()])])
             self.n_agents += args[lineage.name.lower()]
         self._injury_table = [[3, 4, 5, 6, 7, 8],
                               [2, 3, 4, 5, 6, 7],
@@ -63,7 +63,7 @@ class Environment(object):
         if not done:
             self._good_tree = kdtree.create(self._get_alive_agents(False))
             self._evil_tree = kdtree.create(self._get_alive_agents(True))
-            self._update_image()
+            # self._update_image()
         return done
 
     def _update_image(self):
@@ -75,21 +75,26 @@ class Environment(object):
                 cv2.circle(self._image, (int(agent.x), int(agent.y)), radius=1, color=lineage.color, thickness=-1)
 
     def get_observation(self, agent):
-        half_patch_size_x, half_patch_size_y = self.width / 4, self.height / 4
-        lower_x, lower_y = self._clip(agent.x - half_patch_size_x, agent.y - half_patch_size_y)
-        upper_x, upper_y = self._clip(agent.x + half_patch_size_x, agent.y + half_patch_size_y)
-        return self._image[int(lower_x):int(upper_x), int(lower_y):int(upper_y), :].ravel()
+        # half_patch_size_x, half_patch_size_y = self.width / 4, self.height / 4
+        # lower_x, lower_y = self._clip(agent.x - half_patch_size_x, agent.y - half_patch_size_y)
+        # upper_x, upper_y = self._clip(agent.x + half_patch_size_x, agent.y + half_patch_size_y)
+        obs = []
+        obs.extend([res[1] for res in self._good_tree.search_knn(agent, 4)])
+        obs.extend([res[1] for res in self._evil_tree.search_knn(agent, 4)])
+        obs.extend([agent.x, agent.y])
+        obs = np.array(obs)
+        # return self._image[int(lower_x):int(upper_x), int(lower_y):int(upper_y), :].ravel()
+        self._normalize_obs(obs)
+        return obs
 
     def _clip(self, x, y):
         return max(min(x, self.width - 1), 0), max(min(y, self.height - 1), 0)
 
     def _normalize_obs(self, obs):
-        obs[0] /= self.max_distance
-        obs[1] /= self.max_distance
-        obs[2] /= len(self.good_agents)
-        obs[3] /= len(self.evil_agents)
-        obs[4] /= self.width
-        obs[5] /= self.height
+        for i in range(len(obs) - 2):
+            obs[i] /= self.max_distance
+        obs[-2] /= self.width
+        obs[-1] /= self.height
 
     def set_action(self, agent, obs):
         if agent.is_idle():
@@ -151,6 +156,7 @@ class Environment(object):
     def render(self):
         plt.figure(1)
         plt.clf()
+        self._update_image()
         for lineage in Lineage:
             plt.scatter([], [], color=lineage.color, label=lineage.name)
         plt.legend()

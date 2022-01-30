@@ -1,6 +1,7 @@
 import abc
 import random
 from enum import Enum
+import torch
 
 
 ABC = abc.ABCMeta('ABC', (object,), {'__slots__': ()})
@@ -95,11 +96,24 @@ class GreedyAgent(BaseAgent):
 
 class MLPAgent(BaseAgent):
 
-    def __init__(self, i, x, y, lineage):
+    def __init__(self, i, x, y, lineage, solution):
         super(MLPAgent, self).__init__(i, x, y, lineage)
+        self.nn = torch.nn.Sequential(torch.nn.Linear(10, 10), torch.nn.Tanh(),
+                                      torch.nn.Linear(10, 2), torch.nn.Tanh())
+        self.set_params(solution)
+        for param in self.nn.parameters():
+            param.requires_grad = False
 
     def __str__(self):
         return super(MLPAgent, self).__str__().replace("Base", "MLP")
 
+    def set_params(self, params):
+        state_dict = self.nn.state_dict()
+        start = 0
+        for key, coeffs in state_dict.items():
+            num = coeffs.numel()
+            state_dict[key] = torch.tensor(params[start:start + num])
+            start += num
+
     def act(self, obs):
-        pass
+        return self.nn(torch.from_numpy(obs).float()).detach().numpy()

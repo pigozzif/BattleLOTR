@@ -6,11 +6,12 @@
 from environment import Environment
 from agents import Lineage
 import argparse
+import numpy as np
 
 
-def battle_simulation(args, render=False):
+def battle_simulation(args, solution, render=False):
     done = False
-    env = Environment(vars(args))
+    env = Environment(vars(args), solution)
     while not done:
         print(env)
         obs = []
@@ -35,4 +36,4 @@ if __name__ == '__main__':
         parser.add_argument("--" + lineage.name.lower(), default=0, type=int, help="number of {}".format(lineage.name))
 
     args = parser.parse_args()
-    battle_simulation(args, render=True)
+    battle_simulation(args, np.random.random(132), render=True)
