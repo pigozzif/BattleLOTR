@@ -5,9 +5,11 @@
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
 from environment import Environment
 from agents import Lineage
+from parallel_solve import ParallelExecutor, mpi_fork
 import argparse
 import numpy as np
 import logging
+import sys
 
 from es import OpenES
 
@@ -56,6 +58,8 @@ if __name__ == '__main__':
         parser.add_argument("--" + lineage.name.lower(), default=0, type=int, help="number of {}".format(lineage.name))
     parser.add_argument("--mode", default="random", type=str, help="run mode")
     parser.add_argument("--iterations", default=500, type=int, help="solver iterations")
+    parser.add_argument("--seed", default=0, type=int, help="random seed")
+    parser.add_argument("--n", default=1, type=int, help="number of parallel workers")
 
     args = parser.parse_args()
     n_params = 132
@@ -75,6 +79,10 @@ if __name__ == '__main__':
         best = solve(solver, args.iterations, args)
         logging.info("fitness score at this local optimum: {}".format(best[1]))
         np.save("best.npy", best[1])
+    elif args.mode == "opt-parallel":
+        if "parent" == mpi_fork(args.n + 1):
+            sys.exit()
+        ParallelExecutor(args, n_params, 1, 0, args.n, 1, False, False, False, args.seed, 0.10, 0.999)
     elif args.mode == "best":
         best = np.load("best.npy")
         battle_simulation(args, best, render=True)

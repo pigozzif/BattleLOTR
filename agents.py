@@ -64,7 +64,7 @@ class BaseAgent(ABC):
     def agent_factory(cls, solution, i, x, y, lineage):
         if solution is None:
             return RandomAgent(i, x, y, lineage)
-        return
+        return MLPAgent(i, x, y, lineage, solution)
 
 
 class RandomAgent(BaseAgent):
