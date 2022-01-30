@@ -55,6 +55,9 @@ class Environment(object):
     def get_alive_agents(self):
         return self._get_alive_agents(True) + self._get_alive_agents(False)
 
+    def get_reward(self):
+        return (self._get_n_agents_alive(False) / self._get_n_agents(False)) - (self._get_n_agents_alive(True) / self._get_n_agents(True))
+
     def step(self):
         for agent in self.get_alive_agents():
             if agent.opponent is not None:
