@@ -1,17 +1,16 @@
 import abc
 import random
 from enum import Enum
-import keras
 
 
 ABC = abc.ABCMeta('ABC', (object,), {'__slots__': ()})
 
 
 class Lineage(Enum):
-    ELF = (5, 3, 4, 5, False, "green")
-    MAN = (3, 3, 4, 3, False, "red")
-    URUK = (3, 4, 5, 3, True, "blue")
-    ORC = (2, 3, 4, 2, True, "black")
+    ELF = (5, 3, 4, 5, False, (0, 1, 0))
+    MAN = (3, 3, 4, 3, False, (1, 0, 0))
+    URUK = (3, 4, 5, 3, True, (0, 0, 1))
+    ORC = (2, 3, 4, 2, True, (0, 0, 0))
 
     def __init__(self, skill, strength, defense, courage, is_evil, color):
         self.skill = skill
@@ -20,11 +19,6 @@ class Lineage(Enum):
         self.courage = courage
         self.is_evil = is_evil
         self.color = color
-
-
-class MLP(object):
-
-    def __init__(self):
 
 
 class BaseAgent(ABC):
@@ -39,6 +33,17 @@ class BaseAgent(ABC):
 
     def __str__(self):
         return "Base{}[x={},y={}]".format(self.lineage.name, self.x, self.y)
+
+    def __len__(self):
+        return 2
+
+    def __getitem__(self, item):
+        if item == 0:
+            return self.x
+        elif item == 1:
+            return self.y
+        else:
+            raise IndexError("using {} index on BaseAgent".format(item))
 
     @abc.abstractmethod
     def act(self, obs):

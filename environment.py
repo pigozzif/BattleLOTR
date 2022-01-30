@@ -1,9 +1,14 @@
 from agents import *
 import random
-from scipy.spatial import KDTree
-from scipy.spatial.distance import euclidean
 import numpy as np
 import matplotlib.pyplot as plt
+import math
+import kdtree
+import cv2
+
+
+def euclidean(a, b):
+    return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
 
 class Environment(object):
@@ -26,69 +31,57 @@ class Environment(object):
                               [1, 1, 2, 3, 4, 5]]
         self._i = 0
         self._image = np.ones((self.width, self.height, 3))
-        self.good_tree = KDTree(self._get_alive_agents_positions(False))
-        self.evil_tree = KDTree(self._get_alive_agents_positions(True))
+        self._good_tree = kdtree.create(self._get_alive_agents(False))
+        self._evil_tree = kdtree.create(self._get_alive_agents(True))
         self.max_distance = euclidean([0, 0], [self.width, self.height])
 
     def __str__(self):
         return "Env[n_good_agents={},n_evil_agents={}]".format(self._get_n_agents_alive(False), self._get_n_agents_alive(True))
 
-    def __iter__(self):
-        self._i = 0
-        return self
-
-    def next(self):
-        if self._i >= len(self.good_agents) + len(self.evil_agents):
-            raise StopIteration
-        agents = self.good_agents + self.evil_agents
-        agent = agents[self._i]
-        while not agent.alive:
-            self._i += 1
-            if self._i >= len(agents):
-                raise StopIteration
-            agent = agents[self._i]
-        self._i += 1
-        return agent
-
     def _get_n_agents(self, evil):
         return len(self.evil_agents) if evil else len(self.good_agents)
 
     def _get_n_agents_alive(self, evil):
-        return len(self.evil_tree.data) if evil else len(self.good_tree.data)
+        return len(self._get_alive_agents(True)) if evil else len(self._get_alive_agents(False))
 
     def _get_alive_agents(self, evil):
         if evil:
-            return np.array([agent for agent in filter(lambda x: x.lineage.is_evil, self)])
-        return np.array([agent for agent in filter(lambda x: not x.lineage.is_evil, self)])
+            return [agent for agent in filter(lambda x: x.lineage.is_evil and x.alive, self.evil_agents)]
+        return [agent for agent in filter(lambda x: not x.lineage.is_evil and x.alive, self.good_agents)]
 
     def _get_alive_agents_positions(self, evil):
         return np.array([[agent.x, agent.y] for agent in self._get_alive_agents(evil)])
 
+    def get_alive_agents(self):
+        return self._get_alive_agents(True) + self._get_alive_agents(False)
+
     def step(self):
-        for agent in self:
+        for agent in self.get_alive_agents():
             if agent.opponent is not None:
                 self._fight(agent, agent.opponent)
-        done = not len(self._get_alive_agents(True)) or not len(self._get_alive_agents(False))
+        done = not self._get_n_agents_alive(True) or not self._get_n_agents_alive(False)
         if not done:
-            self.good_tree = KDTree(self._get_alive_agents_positions(False))
-            self.evil_tree = KDTree(self._get_alive_agents_positions(True))
+            self._good_tree = kdtree.create(self._get_alive_agents(False))
+            self._evil_tree = kdtree.create(self._get_alive_agents(True))
+            self._update_image()
         return done
 
+    def _update_image(self):
+        self._image.fill(1)
+        agents = self._get_alive_agents(False) + self._get_alive_agents(True)
+        for lineage in Lineage:
+            curr_agents = list(filter(lambda x: x.lineage is lineage, agents))
+            for agent in curr_agents:
+                cv2.circle(self._image, (int(agent.x), int(agent.y)), radius=1, color=lineage.color, thickness=-1)
+
     def get_observation(self, agent):
-        pos = [agent.x, agent.y]
-        good = self.good_tree.query(pos)
-        evil = self.evil_tree.query(pos)
-        obs = np.array([self.good_tree.data[good[1]][0],
-                        self.good_tree.data[good[1]][1],
-                        self.evil_tree.data[evil[1]][0],
-                        self.evil_tree.data[evil[1]][1],
-                        len(self.good_tree.query_ball_point(pos, 10.0)),
-                        len(self.evil_tree.query_ball_point(pos, 10.0)),
-                        agent.x,
-                        agent.y,
-                        0 if agent.lineage.is_evil else 1])
-        self._normalize_obs(obs)
-        return obs
+        half_patch_size_x, half_patch_size_y = self.width / 4, self.height / 4
+        lower_x, lower_y = self._clip(agent.x - half_patch_size_x, agent.y - half_patch_size_y)
+        upper_x, upper_y = self._clip(agent.x + half_patch_size_x, agent.y + half_patch_size_y)
+        return self._image[int(lower_x):int(upper_x), int(lower_y):int(upper_y), :].ravel()
+
+    def _clip(self, x, y):
+        return max(min(x, self.width - 1), 0), max(min(y, self.height - 1), 0)
 
     def _normalize_obs(self, obs):
         obs[0] /= self.max_distance
@@ -105,16 +98,14 @@ class Environment(object):
             x, y = self._flee(agent)
         else:
             action = agent.act(obs)
-            x, y = max(min(agent.x + action[0], self.width - 1), 0), max(min(agent.y + action[1], self.height - 1), 0)
+            x, y = self._clip(agent.x + action[0], agent.y + action[1])
         agent.move(x, y)
-        closest_enemies = self.good_tree.query_ball_point([x, y], r=1.0) if agent.lineage.is_evil else self.evil_tree.query_ball_point([x, y], r=1.0)
-        if not len(closest_enemies):
-            return
-        closest_enemies = self._get_alive_agents(not agent.lineage.is_evil)[closest_enemies]
-        closest_enemies = filter(lambda a: not a.is_idle(), closest_enemies)
-        closest_enemy = sorted(closest_enemies, key=lambda a: euclidean([a.x, a.y], [x, y]))[0]
-        if euclidean([closest_enemy.x, closest_enemy.y], [x, y]) <= 1.0:
-            self._engage(agent, closest_enemy)
+        closest_enemy, distance = self._find_closest_enemy(agent)
+        if distance <= 1.0 and not closest_enemy.data.is_idle():
+            self._engage(agent, closest_enemy.data)
+
+    def _find_closest_enemy(self, agent):
+        return self._good_tree.search_nn(agent) if agent.lineage.is_evil else self._evil_tree.search_nn(agent)
 
     @staticmethod
     def _engage(first_opponent, second_opponent):
@@ -143,8 +134,7 @@ class Environment(object):
         self._disengage(first_agent, second_agent)
 
     def _flee(self, agent):
-        closest_enemy = self.good_tree.query([agent.x, agent.y]) if agent.lineage.is_evil else self.evil_tree.query([agent.x, agent.y])
-        opponent = self._get_alive_agents(not agent.lineage.is_evil)[closest_enemy[1]]
+        opponent = self._find_closest_enemy(agent)[0].data
         x, y = agent.x - opponent.x, agent.y - opponent.y
         return min(x, 1.0) if x >= 0 else max(x, -1.0), min(y, 1.0) if y >= 0 else max(y, -1.0)
 
@@ -161,12 +151,8 @@ class Environment(object):
     def render(self):
         plt.figure(1)
         plt.clf()
-        image = np.ones((self.width, self.height, 3))
-        agents = list(self._get_alive_agents(False)) + list(self._get_alive_agents(True))
         for lineage in Lineage:
-            curr_agents = list(filter(lambda x: x.lineage is lineage, agents))
-            plt.scatter([agent.x for agent in curr_agents],
-                        [agent.y for agent in curr_agents], color=lineage.color, label=lineage.name)
+            plt.scatter([], [], color=lineage.color, label=lineage.name)
         plt.legend()
-        plt.imshow(image)
+        plt.imshow(self._image)
         plt.pause(0.01)

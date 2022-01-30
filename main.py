@@ -12,11 +12,12 @@ def battle_simulation(args, render=False):
     done = False
     env = Environment(vars(args))
     while not done:
+        print(env)
         obs = []
-        for agent in env:
+        for agent in env.get_alive_agents():
             obs.append(env.get_observation(agent))
         i = 0
-        for agent in env:
+        for agent in env.get_alive_agents():
             env.set_action(agent, obs[i])
             i += 1
         done = env.step()
