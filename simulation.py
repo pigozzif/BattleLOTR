@@ -43,7 +43,7 @@ def parallel_solve(solver, iterations, args):
     return result
 
 
-def battle_simulation(args, solution, render=False, threshold=10):
+def battle_simulation(args, solution, render=False, threshold=float("inf")):
     done = False
     env = Environment(vars(args), solution)
     start = time.time()
@@ -65,4 +65,4 @@ def battle_simulation(args, solution, render=False, threshold=10):
 
 def parallel_wrapper(args):
     args, solutions, i = args
-    return i, battle_simulation(args, solutions[i], render=False)
+    return i, battle_simulation(args, solutions[i], render=False, threshold=10)

@@ -60,8 +60,9 @@ class Environment(object):
 
     def step(self):
         for agent in self.get_alive_agents():
-            if agent.opponent is not None:
-                self._fight(agent, agent.opponent)
+            if agent.opponents:
+                self._fight(agent)
+        self._disengage()
         done = not self._get_n_agents_alive(True) or not self._get_n_agents_alive(False)
         if not done:
             self._good_tree = kdtree.create(self._get_alive_agents(False))
@@ -117,29 +118,32 @@ class Environment(object):
 
     @staticmethod
     def _engage(first_opponent, second_opponent):
-        first_opponent.opponent = second_opponent
-        second_opponent.opponent = first_opponent
+        first_opponent.opponents.append(second_opponent)
+        second_opponent.opponents.append(first_opponent)
 
-    @staticmethod
-    def _disengage(first_opponent, second_opponent):
-        first_opponent.opponent = None
-        second_opponent.opponent = None
+    def _disengage(self):
+        for agent in self.get_alive_agents():
+            agent.opponents.clear()
 
-    def _fight(self, first_agent, second_agent):
-        winner, loser, is_draw = self._roll_dice(first_agent, second_agent)
-        if is_draw:
-            if first_agent.lineage.skill == second_agent.lineage.skill:
-                is_again_draw = True
-                while is_again_draw:
-                    winner, loser, is_again_draw = self._roll_dice(first_agent, second_agent)
-            else:
-                loser, winner = tuple(sorted([first_agent, second_agent], key=lambda x: x.lineage.skill))
-        injury_threshold = self._injury_table[winner.lineage.strength - 1][loser.lineage.defense - 1]
-        injury_score = random.randint(1, 6)
-        if injury_score >= injury_threshold:
-            loser.die()
-            winner.move(loser.x, loser.y)
-        self._disengage(first_agent, second_agent)
+    def _fight(self, first_agent):
+        while True:
+            winners, losers, is_draw = self._roll_dice(first_agent, len(first_agent.opponents))
+            if not is_draw:
+                break
+            best_opponent_skill = max([second_agent.lineage.skill for second_agent in first_agent.opponents])
+            if first_agent.lineage.skill > best_opponent_skill:
+                winners, losers = [first_agent], [random.choice(first_agent.opponents)]
+                break
+            elif first_agent.lineage.skill < best_opponent_skill:
+                winners, losers = first_agent.opponents, [first_agent]
+                break
+        for winner in winners:
+            for loser in losers:
+                injury_threshold = self._injury_table[winner.lineage.strength - 1][loser.lineage.defense - 1]
+                injury_score = random.randint(1, 6)
+                if injury_score >= injury_threshold:
+                    loser.die()
+                    winner.move(loser.x, loser.y)
 
     def _flee(self, agent):
         opponent = self._find_closest_enemy(agent)[0].data
@@ -147,21 +151,21 @@ class Environment(object):
         return min(x, 1.0) if x >= 0 else max(x, -1.0), min(y, 1.0) if y >= 0 else max(y, -1.0)
 
     @staticmethod
-    def _roll_dice(first, second):
+    def _roll_dice(first, num_seconds):
         first_score = random.randint(1, 6)
-        second_score = random.randint(1, 6)
-        if first_score > second_score:
-            return first, second, False
-        elif first_score < second_score:
-            return second, first, False
-        return first, second, True
+        second_scores = [random.randint(1, 6) for _ in range(num_seconds)]
+        if first_score > max(second_scores):
+            return [first], [random.choice(first.opponents)], False
+        elif first_score < max(second_scores):
+            return first.opponents, [first], False
+        return [first], first.opponents, True
 
     def render(self):
         plt.figure(1)
         plt.clf()
         self._update_image()
         for lineage in Lineage:
-            plt.scatter([], [], color=lineage.color, label=lineage.name)
+            plt.scatter([], [], color=lineage.color, label=lineage.name, marker="+")
         plt.legend()
         plt.imshow(self._image)
         plt.pause(0.01)

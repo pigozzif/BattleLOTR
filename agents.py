@@ -30,7 +30,7 @@ class BaseAgent(ABC):
         self.y = y
         self.lineage = lineage
         self.alive = True
-        self.opponent = None
+        self.opponents = []
 
     def __str__(self):
         return "Base{}[x={},y={}]".format(self.lineage.name, self.x, self.y)
@@ -58,7 +58,7 @@ class BaseAgent(ABC):
         self.alive = False
 
     def is_idle(self):
-        return not self.alive or self.opponent is not None
+        return not self.alive or self.opponents
 
     @classmethod
     def agent_factory(cls, solution, i, x, y, lineage):
