@@ -6,11 +6,9 @@
 import random
 import torch
 from agents import Lineage
-from parallel_solve import ParallelExecutor, mpi_fork
 import argparse
 import numpy as np
 import logging
-import sys
 from es import OpenES
 from simulation import battle_simulation, solve, parallel_solve
 
@@ -55,10 +53,6 @@ if __name__ == '__main__':
         else:
             best = solve(solver, args.iterations, args)
         logging.warning("fitness score at this local optimum: {}".format(best[1]))
-    elif args.mode == "opt-parallel":
-        if "parent" == mpi_fork(args.n + 1):
-            sys.exit()
-        ParallelExecutor(args, n_params, 1, 0, args.n, 1, False, False, False, args.seed, 0.10, 0.999)
     elif args.mode == "best":
         best = np.load("best.npy")
         battle_simulation(args, best, render=True)
