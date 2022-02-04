@@ -35,7 +35,7 @@ if __name__ == '__main__':
     parser.add_argument("--np", default=1, type=int, help="number of parallel workers")
 
     args = parser.parse_args()
-    n_params = 132
+    n_params = 209  # 82 + (4 * 3 * 5 * 5) * 2 + 8
     set_seed(args.seed)
     if args.mode == "random":
         battle_simulation(args, np.random.random(n_params), render=True)

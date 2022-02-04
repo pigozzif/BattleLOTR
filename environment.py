@@ -21,9 +21,11 @@ class Environment(object):
         self.good_agents = []
         for lineage in Lineage:
             if lineage.is_evil:
-                self.evil_agents.extend([RandomAgent(i, random.random() * self.width, random.random() * self.height, lineage) for i in range(args[lineage.name.lower()])])
+                self.evil_agents.extend([RandomAgent(i, int(random.gauss(50, 10)), int(random.gauss(20, 10)), lineage)
+                                         for i in range(args[lineage.name.lower()])])
             else:
-                self.good_agents.extend([MLPAgent(i, random.random() * self.width, random.random() * self.height, lineage, solution) for i in range(args[lineage.name.lower()])])
+                self.good_agents.extend([MLPAgent(i, int(random.gauss(50, 10)), int(random.gauss(80, 10)), lineage, solution)
+                                         for i in range(args[lineage.name.lower()])])
             self.n_agents += args[lineage.name.lower()]
         self._injury_table = [[3, 4, 5, 6, 7, 8],
                               [2, 3, 4, 5, 6, 7],
@@ -36,7 +38,8 @@ class Environment(object):
         self.max_distance = euclidean([0, 0], [self.width, self.height])
 
     def __str__(self):
-        return "Env[n_good_agents={},n_evil_agents={}]".format(self._get_n_agents_alive(False), self._get_n_agents_alive(True))
+        return "Env[n_good_agents={},n_evil_agents={}]".format(self._get_n_agents_alive(False),
+                                                               self._get_n_agents_alive(True))
 
     def _get_n_agents(self, evil):
         return len(self.evil_agents) if evil else len(self.good_agents)
@@ -56,7 +59,8 @@ class Environment(object):
         return self._get_alive_agents(True) + self._get_alive_agents(False)
 
     def get_reward(self):
-        return (self._get_n_agents_alive(False) / self._get_n_agents(False)) - (self._get_n_agents_alive(True) / self._get_n_agents(True))
+        return (self._get_n_agents_alive(False) / self._get_n_agents(False)) - \
+               (self._get_n_agents_alive(True) / self._get_n_agents(True))
 
     def step(self):
         for agent in self.get_alive_agents():
@@ -67,7 +71,7 @@ class Environment(object):
         if not done:
             self._good_tree = kdtree.create(self._get_alive_agents(False))
             self._evil_tree = kdtree.create(self._get_alive_agents(True))
-            # self._update_image()
+            self._update_image()
         return done
 
     def _update_image(self):
@@ -87,7 +91,7 @@ class Environment(object):
         obs.extend([res[1] for res in self._evil_tree.search_knn(agent, 4)])
         obs.extend([agent.x, agent.y])
         obs = np.array(obs)
-        # return self._image[int(lower_x):int(upper_x), int(lower_y):int(upper_y), :].ravel()
+        # return self._image[int(lower_x):int(upper_x), int(lower_y):int(upper_y), :]
         self._normalize_obs(obs)
         return obs
 
@@ -103,14 +107,15 @@ class Environment(object):
     def set_action(self, agent, obs):
         if agent.is_idle():
             return
-        elif self._get_n_agents_alive(agent.lineage.is_evil) < 0.1 * self._get_n_agents(agent.lineage.is_evil) and random.randint(1, 6) + agent.lineage.courage < 10:
+        elif self._get_n_agents_alive(agent.lineage.is_evil) < 0.1 * self._get_n_agents(agent.lineage.is_evil) \
+                and random.randint(1, 6) + agent.lineage.courage < 10:
             x, y = self._flee(agent)
         else:
             action = agent.act(obs)
             x, y = self._clip(agent.x + action[0], agent.y + action[1])
         agent.move(x, y)
         closest_enemy, distance = self._find_closest_enemy(agent)
-        if distance <= 1.0 and not closest_enemy.data.is_idle():
+        if distance <= 1.0 and closest_enemy.data.alive:
             self._engage(agent, closest_enemy.data)
 
     def _find_closest_enemy(self, agent):

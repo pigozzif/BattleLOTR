@@ -2,7 +2,7 @@ import abc
 import random
 from enum import Enum
 import torch
-
+import numpy as np
 
 ABC = abc.ABCMeta('ABC', (object,), {'__slots__': ()})
 
@@ -31,6 +31,8 @@ class BaseAgent(ABC):
         self.lineage = lineage
         self.alive = True
         self.opponents = []
+        self._move_lookup = {0: (-1, +1), 1: (0, -1), 2: (+1, +1), 3: (+1, 0), 4: (+1, -1), 5: (0, +1), 6: (-1, +1),
+                             7: (-1, 0), 8: (0, 0)}
 
     def __str__(self):
         return "Base{}[x={},y={}]".format(self.lineage.name, self.x, self.y)
@@ -76,7 +78,7 @@ class RandomAgent(BaseAgent):
         return super(RandomAgent, self).__str__().replace("Base", "Random")
 
     def act(self, obs):
-        return random.random() * 2 - 1, random.random() * 2 - 1
+        return random.choice(list(self._move_lookup.values()))
 
 
 class GreedyAgent(BaseAgent):
@@ -98,8 +100,14 @@ class MLPAgent(BaseAgent):
 
     def __init__(self, i, x, y, lineage, solution):
         super(MLPAgent, self).__init__(i, x, y, lineage)
-        self.nn = torch.nn.Sequential(torch.nn.Linear(10, 10), torch.nn.Tanh(),
-                                      torch.nn.Linear(10, 2), torch.nn.Tanh())
+        self.nn = torch.nn.Sequential(torch.nn.Linear(in_features=10, out_features=10), torch.nn.Tanh(),
+                                      torch.nn.Linear(in_features=10, out_features=9), torch.nn.Softmax(dim=0)
+                                      # torch.nn.Conv2d(in_channels=3, out_channels=4, kernel_size=(5, 5)),
+                                      # torch.nn.ReLU(), torch.nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2)),
+                                      # torch.nn.Conv2d(in_channels=4, out_channels=4, kernel_size=(5, 5)),
+                                      # torch.nn.ReLU(), torch.nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2)),
+                                      # torch.nn.Linear(in_features=40, out_features=2), torch.nn.Tanh()
+                                      )
         self.set_params(solution)
         for param in self.nn.parameters():
             param.requires_grad = False
@@ -116,4 +124,4 @@ class MLPAgent(BaseAgent):
             start += num
 
     def act(self, obs):
-        return self.nn(torch.from_numpy(obs).float()).detach().numpy()
+        return self._move_lookup[int(np.argmax(self.nn(torch.from_numpy(obs).float()).detach().numpy()))]
