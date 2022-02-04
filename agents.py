@@ -31,7 +31,7 @@ class BaseAgent(ABC):
         self.lineage = lineage
         self.alive = True
         self.opponents = []
-        self._move_lookup = {0: (-1, +1), 1: (0, -1), 2: (+1, +1), 3: (+1, 0), 4: (+1, -1), 5: (0, +1), 6: (-1, +1),
+        self._move_lookup = {0: (-1, -1), 1: (0, -1), 2: (+1, +1), 3: (+1, 0), 4: (+1, -1), 5: (0, +1), 6: (-1, +1),
                              7: (-1, 0), 8: (0, 0)}
 
     def __str__(self):
